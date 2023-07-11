@@ -1,0 +1,930 @@
+---
+title: "XYZ_co PG"
+output: 
+  html_document: 
+    fig_width: 12
+    fig_height: 12
+    toc_depth: 4
+date: "2023-03-28"
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(TSstudio)
+library(forecast)
+library(tseries)
+library(imputeTS)
+library(lmtest) # for coeftest
+library(dplyr) #unload to ensure stats::lag() is used instead and slightly shorten extensive var names in model fitting
+library(lubridate)
+library(lmtest) # for coeftest()
+
+```
+
+
+<!-- Set up and Data Cleaning -->
+```{r}
+#Initialize and arrange by date
+XYZ_co_Data_03_15_2023_LW$date[1] <- "1899-12-01"
+XYZ_co_Data_03_15_2023_LW$date <- as.Date(XYZ_co_Data_03_15_2023_LW$date)
+XYZ_co_Data_03_15_2023_LW <- XYZ_co_Data_03_15_2023_LW %>%  arrange(date)
+```
+
+```{r}
+#Change Recession info into a Dummy variable, 1 if recession, 0 if not.
+  
+isRecession <-NULL
+for (i in 1:length(XYZ_co_Data_03_15_2023_LW$recession)) {
+  if (is.na(XYZ_co_Data_03_15_2023_LW$recession[i])) {
+    isRecession[i] <- 0
+  }
+    else {
+      isRecession[i] <- 1
+  }
+}
+#Create Indicator Variables instead. Redundancy
+covidRec <- isRecession
+covidRec[c(1:1441, 1445:1477)] <- 0
+greatRec <- rep(0, each = 1477)
+greatRec[1296:1314] <- 1
+early2000Rec <- rep(0,each = 1477)
+early2000Rec[1215:1223] <- 1
+
+#Create Interaction variables as needed to check with Prewhitening or include in model fitting
+GDPYoYxUnempClaimsAdj <- XYZ_co_Data_03_15_2023_LW$GDP_YoY * log(XYZ_co_Data_03_15_2023_LW$Unemployment_Claims_Adj)
+CPIAdjSq <- XYZ_co_Data_03_15_2023_LW$CPI_Adj ^2
+UnempXSavings <- XYZ_co_Data_03_15_2023_LW$Unemployment_Rate_Adj * XYZ_co_Data_03_15_2023_LW$Savings_Rate
+
+#Create Month Indicator Variables
+allMonths <- month((XYZ_co_Data_03_15_2023_LW$date))
+novInd <- ifelse(allMonths==11, 1, 0)
+decInd <- ifelse(allMonths==12, 1, 0)
+janInd <- ifelse(allMonths==1, 1, 0)
+febInd <- ifelse(allMonths ==2, 1,0)
+
+
+# CPIAdjxDebt <- XYZ_co_Data_03_15_2023_LW$CPI_Adj * XYZ_co_Data_03_15_2023_LW$Debt
+# CPIxDebt <- XYZ_co_Data_03_15_2023_LW$CPI * XYZ_co_Data_03_15_2023_LW$Debt
+XYZ_co_dat <- cbind(XYZ_co_Data_03_15_2023_LW, early2000Rec, greatRec, covidRec, CPIAdjSq, UnempXSavings, novInd, decInd, janInd, febInd)
+# head(XYZ_co_dat)
+
+```
+
+```{r}
+#Master TS, interpolate missing XYZ_co revenue
+myTS <- XYZ_co_dat[1288:1475,c(4:31,33,34,37:48)] %>% ts(start = c(2007,3), end = c(2022,10), freq = 12) %>%na_kalman()
+
+
+#Removal of Hourly earning to increase date range by 50%
+myTS2 <- XYZ_co_dat[1190:1475, c(4:12,17:31,33,34,37:48)] %>% ts(start = c(1999,1), end = c(2022,10), freq = 12) %>% na_kalman()
+
+
+
+```
+
+
+```{r}
+#Impute previously converted NA values 
+# myTsAnomFree <- na_interpolation(myTsAnomFree)
+# ts_plot(myTsAnomFree)
+```
+
+Prewhitening used to identify possible terms for lagged regression. (https://online.stat.psu.edu/stat510/lesson/9/9.1)
+<!-- Prewhitening Attempt 1: Manually  -->
+```{r}
+# Sort IVs into lists of approx. likely AR and differencing orders
+for (i in c(1:24, 29:36)) {
+  ccf(myTS2[,i],myTS2[,31], main = colnames(myTS2)[i], lag.max = 24)
+  acf(myTS[,i], main = colnames(myTS)[i])
+  pacf(myTS[,i], main = colnames(myTS)[i])
+}
+```
+
+```{r}
+#Determined using last chunks acf/pacf.
+seasList <- c(3,  20, 23, 25)
+diffList <- c(1,2, 4, 6, 7, 10, 11, 12, 13, 14, 15, 18, 19, 21, 22, 24, 26, 27, 28, 34)
+diffnSeasList <- c(11, 12, 13, 15, 19, 22, 27)
+ar1list <- c(25)
+ar2list <- c(3,5, 16, 17, 20, 23)
+ar3list<- c(8, 9)
+```
+
+```{r}
+#Determine best AR order for IVs that need differencing
+for (i in diffList) {
+  ccf(diff(myTS[,i], differences = 1),myTS[,31], main = i, lag.max = 48)
+  acf(diff(myTS[,i], differences = 1), main = colnames(myTS)[i])
+  pacf(diff(myTS[,i], differences = 1), main = colnames(myTS)[i])
+}
+```
+
+```{r}
+#Sorted with last chunk
+diffar1List <- c(14, 19 )
+diffar2List <- c(2, 4, 10, 11, 12, 13,15, 21,24, 28)
+diffar3List <- c(18, 22)
+noList <- c(1, 6, 7, 26, 27)
+y_i <- 31
+```
+
+General Idea of Prewhitening: plot a CCF  of filtered y values against x residuals found in approx AR and I orders.
+Y values are filtered by the x coefficients in approx ARI model. This process is highly discretionary.
+```{r}
+#Prewhitening y based on AR 1 IVs
+for (i in ar1list) {
+  tempMd <- NULL
+  pwTemp <- NULL
+  pwXYZ_coTemp <- NULL
+  tempC <- NULL
+  #Apply approx ARI order
+  tempMd <- arima(myTS[,i], order = c(1,0,0))
+  tempC <- tempMd$coef
+  pwTemp <-tempMd$residuals
+  #Filtered y Values
+  pwXYZ_coTemp <- stats::filter(myTS[,y_i], method = "recursive", filter = c(-tempMd$coef, 1), side = 1)
+  ccf(pwTemp, pwXYZ_coTemp, na.action = na.omit, main = colnames(myTS)[i])
+}
+```
+Repeat for other lists
+```{r}
+#Prewhitening based on AR2 IVs
+for (i in ar2list) {
+  tempMd <- NULL
+  pwTemp <- NULL
+  pwXYZ_coTemp <- NULL
+  tempMd <- arima(myTS[,i], order = c(2,0,0))
+  print(tempMd$coef)
+  pwTemp <-tempMd$residuals
+  pwXYZ_coTemp <- stats::filter(myTS[,y_i], filter = c(1, -tempMd$coef[1], -tempMd$coef[2], tempMd$coef[1]*tempMd$coef[2]), side = 1)
+  ccf(pwTemp, pwXYZ_coTemp, na.action = na.omit, main = colnames(myTS)[i])
+}
+```
+
+```{r}
+#Prewhitening based on AR3 IVs
+for (i in ar3list) {
+  tempMd <- NULL
+  pwTemp <- NULL
+  pwXYZ_coTemp <- NULL
+  tempC <- NULL
+  tempMd <- arima(myTS[,i], order = c(3,0,0))
+  pwTemp <-tempMd$residuals
+  tempC <- tempMd$coef
+  # print(tempC)
+  pwXYZ_coTemp <- stats::filter(myTS[,y_i], filter = c(1, -tempC[1], -tempC[2], tempC[1]*tempC[2]-tempC[3], tempC[1]*tempC[3], tempC[2]*tempC[3], -tempC[1]*tempC[2]*tempC[3]), side = 1)
+  ccf(pwTemp, pwXYZ_coTemp, na.action = na.omit, main = colnames(myTS)[i])
+}
+```
+
+```{r}
+#Prewhitening based on differenced AR 1 IVs
+for (i in diffar1List) {
+  tempMd <- NULL
+  pwTemp <- NULL
+  pwXYZ_coTemp <- NULL
+  tempC <- NULL
+  tempMd <- arima(myTS[,i], order = c(1,1,0))
+  pwTemp <-tempMd$residuals
+  tempC <- tempMd$coef
+  print(tempC)
+  pwXYZ_coTemp <- stats::filter(myTS[,y_i], filter = c(1, -1-tempC[1], -tempC[1]), side = 1)
+  ccf(pwTemp, pwXYZ_coTemp, na.action = na.omit, main = colnames(myTS)[i], lag.max = 48)
+}
+```
+
+```{r}
+#Prewhitening based on differenced AR 2 IVs
+for (i in diffar2List) {
+  tempMd <- NULL
+  pwTemp <- NULL
+  pwXYZ_coTemp <- NULL
+  tempC <- NULL
+  tempMd <- arima(myTS[,i], order = c(2,1,0))
+  pwTemp <-tempMd$residuals
+  tempC <- tempMd$coef
+  print(tempC)
+  pwXYZ_coTemp <- stats::filter(myTS[,y_i], filter = c(1, -1-tempC[1], -tempC[1]-tempC[2], tempC[2]+tempC[1]*tempC[2], tempC[1]*tempC[2]), side = 1)
+  ccf(pwTemp, pwXYZ_coTemp, na.action = na.omit, main = colnames(myTS)[i])
+}
+```
+
+```{r}
+#Prewhitening based on differenced AR 3 IVs
+for (i in diffar3List) {
+  tempMd <- NULL
+  pwTemp <- NULL
+  pwXYZ_coTemp <- NULL
+  tempC <- NULL
+  tempMd <- arima(myTS[,i], order = c(3,1,0))
+  pwTemp <-tempMd$residuals
+  tempC <- tempMd$coef
+  print(tempC)
+  pwXYZ_coTemp <- stats::filter(myTS[,y_i], filter=c(1, -tempC[1]-1, -tempC[2]+tempC[1], tempC[1]*tempC[2]-tempC[3]+tempC[2], tempC[1]*tempC[3] - (tempC[1]*tempC[2] -tempC[3]), tempC[2]*tempC[3]-tempC[1]*tempC[3], -tempC[1]*tempC[2]*tempC[3] - tempC[2]*tempC[3], tempC[1]*tempC[2]*tempC[3]), side = 1)
+  ccf(pwTemp, pwXYZ_coTemp, na.action = na.omit, main = colnames(myTS)[i])
+}
+```
+
+More approaches used as the prior method didn't use MA orders for simplicity, and had high complexity determining the filter function.
+
+<!-- Prewhitening Approach 2: Using TSA::prewhiten(). Limited to AR models only. Automatic and may not be correct -->
+
+```{r}
+library(TSA)
+for(i in c(1:24, 29:36)){
+  prewhiten(myTS2[,i], myTS2[,27],lag.max = 24,  main = colnames(myTS2)[i])
+}
+```
+
+
+<!-- Prewhitening Approach 3: Using TSA::prewhiten() again, but with auto.arima on IVs to possibly capture MA and seasonality. Cautions: automatic and possibly not correct. Doesn't show which orders used -->
+
+```{r}
+#Caution: Lengthy Processing time expected, possibly 30 minutes.
+for(i in c(1:28, 35:39)){
+  tempArima <- auto.arima(myTS[,i], stepwise = FALSE, approximation = FALSE)
+  whiteY <- residuals(Arima(myTS[,31], model = tempArima))
+  ccf(myTS[,i], whiteY, main = colnames(myTS)[i], lag.max = 24 )
+}
+```
+
+
+
+
+
+<!-- Observations while compiling lags/leads. Generally determined by which side had stronger/more spikes. -->
+
+More likely to be Lagging:
+Unemp Rate Adj, Unemp Claims, Hourly Earnings YoY, Debt, Home Sales Adj, Recessions
+
+More likely to be leading:
+S&P, GDP Unemp Rate, Hourly Earnings, CPI, Available Credit, Disp Income, Saving Rate, New Home Sales Adj
+
+
+
+```{r}
+#Significant lags from Prewhitening
+y <- log(myTS[,31])
+xLag <- cbind(
+  lag(myTS[,"S&P500"], -2),
+  lag(myTS[,"GDP"], -20),
+  lag(myTS[,"GDP_YoY"], -1),
+  lag(myTS[,"PCE"], -20),
+  lag(myTS[,"Unemployment_Rate"], -8),
+  lag(myTS[,"Unemployment_Rate"], -20),
+  lag(myTS[,"Unemployment_Rate_Adj"], -3),
+  lag(myTS[,"Unemployment_Rate_Adj"], -11),
+  myTS[,"Unemployment_Claims"],
+  lag(myTS[,"Unemployment_Claims"], -10),
+  lag(myTS[,"Unemployment_Claims"], -13),
+  myTS[,"Hourly_Earnings_Adj"],
+  lag(myTS[,"Hourly_Earnings_Adj"], -6),
+  lag(myTS[,"CPI_Adj"], -12),
+  lag(myTS[,"CPI_Adj"], -15),
+  lag(myTS[,"Available_Credit"], -20),
+  lag(myTS[,"CCI"], -2),
+  lag(myTS[,"Debt"], -1),
+  lag(myTS[,"Debt"], -6),
+  lag(myTS[,"Debt"], -10),
+  lag(myTS[,"Debt"], -11),
+  lag(myTS[,"Savings_Rate"], -8),
+  lag(myTS[,"Savings_Rate"], -19),
+  lag(myTS[,"Home_Sales_Adj"], -1),
+  lag(myTS[,"Home_Sales_Adj"], -8),
+  myTS[,"Plans_to_Buy_Automobile"]
+) 
+```
+
+<!-- Significant leads found in prior prewhitening CCFs(not exhaustive) -->
+
+Leads:S&P 8, 10
+GDP: 4, 10. Yoy 12
+PCE: 5, 14, 18
+Unemp Rate: 2, 5
+Adj: 13
+Unemp Claims: 1, 13,14
+Hourly: 5. Adj 6
+CPI: 6. Adj: 3, 15
+Avail Cred: 12, 13, 17
+Disp Income: 11, 1to 24 YoY 11 + 16, 23
+Savings: 4, 11
+Homes Adj: 1, 14, 7, 15
+New Homes Adj: 10,11,12, 13
+GDPxUnemp: 1,2,13, 21,2,13
+
+Note: Stepwise regression was used in statistical software JMP to help expand the list of possible lags/leads, possible interactions.
+
+<!-- Model Fitting General Idea: Create a large list of possible variables with lags/leads. Utilize arima() with xreg("x regressors" or IVs) argument. Add as many variables to xreg as possible with no (Seasonal) ARIMA orders to capture as much of the series with regressors, then tweak the order and included regressors until residual assumptions are met in checkresiduals(). -->
+
+
+
+# ```{r}
+# #Attempt with stepwise found sig lags, create lags of var
+# stepLags <- cbind(
+#   myTS2[,27],
+#   lag(myTS2[,"Home_Sales_Adj"], -8),
+#   lag(myTS2[,"Home_Sales_Adj"], -9),
+#   lag(myTS2[,"Home_Sales_Adj"], -10),
+#   lag(myTS2[,"Savings_Rate"], -8),
+#   lag(myTS2[,"Savings_Rate"], -19),
+#   lag(myTS2[,"Debt"], -6),
+#   lag(myTS2[,"Debt"], -9),
+#   log(lag(myTS2[,"Disposable_Income"], -13)),
+#   log(lag(myTS2[,"Disposable_Income"], -24)),
+#   # lag(myTS2[,"Available_Credit"], -1),
+#   lag(myTS2[,"Available_Credit"], -24),
+#   lag(myTS2[,"CPI_Adj"], -9),
+#   lag(myTS2[,"CPI_Adj"], -12),
+#   lag(myTS2[,"CPI_Adj"], -14),
+#   lag(myTS2[,"CPI_Adj"], -17),
+#   # lag(myTS2[,"CPI_Adj"], -24),
+#   lag(myTS2[,"Unemployment_Rate"], -8),
+#   lag(myTS2[,"Unemployment_Rate"], -20),
+#   lag(myTS2[,"Unemployment_Claims"], -10),
+#   lag(myTS2[,"Unemployment_Claims"], -20),
+#   lag(myTS2[,"S&P500"], -1),
+#   lag(myTS2[,"S&P500"], -9),
+#   lag(myTS2[,"GDP_YoY"], -1),
+#   # lag(myTS2[,"GDP_YoY"], -20),
+#   # lag(myTS2[,"PCE_YoY"], -8),
+#   # lag(myTS2[,"PCE_YoY"], -20),
+#   # lag(myTS2[,"isRecession"], -1),
+#   lag(myTS2[,"isRecession"], -10),
+#   lag(myTS2[,"isRecession"], -12),
+#   # lag(myTS2[,"isRecession"], -22),
+#   lag(myTS2[,"isRecession"], -23)
+# )
+#   
+# ```
+
+```{r}
+#Attempt 2 with PW lags
+stepLags2 <- cbind(
+  myTS2[,27],
+  # lag(myTS2[,"Home_Sales_Adj"], -5),
+  # lag(myTS2[,"Home_Sales_Adj"], -9),
+  # lag(myTS2[,"Home_Sales_Adj"], -10),
+  # lag(myTS2[,"Home_Sales_Adj"], -11),
+  lag(myTS2[,"Home_Sales_Adj"], -17),
+  # lag(myTS2[,"Home_Sales_Adj"], -20),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -4),
+  lag(myTS2[,"New_Home_Sales_Adj"], -7),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -9),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -11),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -14),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -16),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -18),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -20),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -21),
+  # log(lag(myTS2[,"Savings_Rate"], -7)),
+  # log(lag(myTS2[,"Savings_Rate"], -8)),
+  # log(lag(myTS2[,"Savings_Rate"], -16)),
+  # log(lag(myTS2[,"Savings_Rate"], -19)),
+  # lag(myTS2[,"Debt"], -10),
+  # lag(myTS2[,"Debt"], -11),
+  # lag(myTS2[,"Debt"], -13),
+  # lag(myTS2[,"Debt"], -14),
+  # lag(myTS2[,"Debt"], -16),
+  # lag(myTS2[,"Debt"], -17),
+  # lag(myTS2[,"Debt"], -23),
+  # lag(myTS2[,"CCI"], -10),
+  # lag(myTS2[,"CCI"], -14),
+  # lag(myTS2[,"CPI_Adj"], -9),
+  # lag(myTS2[,"CPI_Adj"], -14),
+  # lag(myTS2[,"CPI_Adj"], -17),
+  # log(lag(myTS2[,"Available_Credit"], -19)),
+  # log(lag(myTS2[,"Disposable_Income"], -13)),
+  # log(lag(myTS2[,"Disposable_Income"], -11)),
+  # log(lag(myTS2[,"Disposable_Income_YoY"], -8)),
+  # log(lag(myTS2[,"Disposable_Income_YoY"], -9)),
+  # log(lag(myTS2[,"Unemployment_Rate_Adj"], -5)),
+  # log(lag(myTS2[,"Unemployment_Rate_Adj"], -13)),
+  # log(lag(myTS2[,"Unemployment_Rate_Adj"], -11)),
+  # log(lag(myTS2[,"Unemployment_Rate_Adj"], -17)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -7)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -8)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -10)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], -11)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -22)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -23)),
+  # lag(myTS2[,"GDP_YoY"], -1),
+  # lag(myTS2[,"GDP_YoY"], -3),
+  # lag(myTS2[,"GDP_YoY"], -19),
+  # lag(myTS2[,"PCE_YoY"], -18),
+  lag(myTS2[,"PCE_YoY"], -19),
+  # lag(myTS2[,"PCE"], -20),
+  # lag(myTS2[,"GDP"], -10),
+  # myTS2[,"covidRec"],
+  # lag(myTS2[,"covidRec"], -2),
+  # lag(myTS2[,"greatRec"], -2),
+  # lag(myTS2[,"greatRec"], -6),
+  # lag(myTS2[,"greatRec"], -7),
+  # myTS2[,"early2000Rec"],
+  # lag(myTS2[,"isRecession"], -10),
+  # lag(myTS2[,"isRecession"], -22),
+  # lag(myTS2[,"isRecession"], -23),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -3),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -10),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -14),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -19),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -21),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -3)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -7)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -10)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -11)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -12)),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -13)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -15)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -23)),
+  # lag(myTS2[,"CPIxDebt"], -20)
+  # lag(myTS2[,"CPIAdjxDebt"], -8),
+  # lag(myTS2[,"CPIAdjxDebt"], -10),
+  # lag(myTS2[,"CPIAdjxDebt"], -13),
+  lag(myTS2[,"CPIAdjxDebt"], -14)
+  # lag(myTS2[,"CPIAdjxDebt"], -20)
+)
+#Fit a model with stepwise found lags
+#(1,0,2)(1,0,1)
+  fitStep <- arima(stepLags2[25:285,1], order = c(1,0,0), seasonal = list(order = c(1,0,0), period = 12), xreg = stepLags2[25:285,-1], include.mean = FALSE, method = "ML")
+# fitStep <- auto.arima(stepLags2[25:285,1], xreg = stepLags2[25:285,-1], approximation = FALSE, stepwise = FALSE)
+# summary(fitStep)
+# pacf(fitStep$residuals, lag.max = 48)
+checkresiduals(fitStep)
+coeftest(fitStep)
+
+```
+
+```{r}
+#Attempt 3 with limit data 170:285
+stepLags3 <- cbind(
+  myTS2[,27],
+  # lag(myTS2[,"Home_Sales_Adj"], -5),
+  # lag(myTS2[,"Home_Sales_Adj"], -9),
+  # lag(myTS2[,"Home_Sales_Adj"], -10),
+  # lag(myTS2[,"Home_Sales_Adj"], -11),
+  lag(myTS2[,"Home_Sales_Adj"], -17),
+  # lag(myTS2[,"Home_Sales_Adj"], -20),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -4),
+  lag(myTS2[,"New_Home_Sales_Adj"], -7),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -9),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -11),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -14),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -16),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -18),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -20),
+  # lag(myTS2[,"New_Home_Sales_Adj"], -21),
+  # log(lag(myTS2[,"Savings_Rate"], -7)),
+  # log(lag(myTS2[,"Savings_Rate"], -8)),
+  # log(lag(myTS2[,"Savings_Rate"], -16)),
+  # log(lag(myTS2[,"Savings_Rate"], -19)),
+  # lag(myTS2[,"Debt"], -10),
+  # lag(myTS2[,"Debt"], -11),
+  # lag(myTS2[,"Debt"], -13),
+  # lag(myTS2[,"Debt"], -14),
+  # lag(myTS2[,"Debt"], -16),
+  # lag(myTS2[,"Debt"], -17),
+  # lag(myTS2[,"Debt"], -23),
+  # lag(myTS2[,"CCI"], -10),
+  # lag(myTS2[,"CCI"], -14),
+  # lag(myTS2[,"CPI_Adj"], -9),
+  # lag(myTS2[,"CPI_Adj"], -14),
+  # lag(myTS2[,"CPI_Adj"], -17),
+  # log(lag(myTS2[,"Available_Credit"], -19)),
+  # log(lag(myTS2[,"Disposable_Income"], -13)),
+  # log(lag(myTS2[,"Disposable_Income"], -11)),
+  # log(lag(myTS2[,"Disposable_Income_YoY"], -8)),
+  # log(lag(myTS2[,"Disposable_Income_YoY"], -9)),
+  # log(lag(myTS2[,"Unemployment_Rate_Adj"], -5)),
+  # log(lag(myTS2[,"Unemployment_Rate_Adj"], -13)),
+  # log(lag(myTS2[,"Unemployment_Rate_Adj"], -11)),
+  # log(lag(myTS2[,"Unemployment_Rate_Adj"], -17)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -7)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -8)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -10)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], -11)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -22)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -23)),
+  # lag(myTS2[,"GDP_YoY"], -1),
+  # lag(myTS2[,"GDP_YoY"], -3),
+  # lag(myTS2[,"GDP_YoY"], -19),
+  # lag(myTS2[,"PCE_YoY"], -18),
+  lag(myTS2[,"PCE_YoY"], -19),
+  # lag(myTS2[,"PCE"], -20),
+  # lag(myTS2[,"GDP"], -10),
+  # myTS2[,"covidRec"],
+  # lag(myTS2[,"covidRec"], -2),
+  # lag(myTS2[,"greatRec"], -2),
+  # lag(myTS2[,"greatRec"], -6),
+  # lag(myTS2[,"greatRec"], -7),
+  # myTS2[,"early2000Rec"],
+  # lag(myTS2[,"isRecession"], -10),
+  # lag(myTS2[,"isRecession"], -22),
+  # lag(myTS2[,"isRecession"], -23),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -3),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -10),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -14),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -19),
+  # lag(myTS2[,"Plans_to_Buy_Automobile"], -21),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -3)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -7)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -10)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -11)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -12)),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -13)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -15)),
+  # log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -23)),
+  # lag(myTS2[,"CPIxDebt"], -20)
+  # lag(myTS2[,"CPIAdjxDebt"], -8),
+  # lag(myTS2[,"CPIAdjxDebt"], -10),
+  # lag(myTS2[,"CPIAdjxDebt"], -13),
+  lag(myTS2[,"CPIAdjxDebt"], -14)
+  # lag(myTS2[,"CPIAdjxDebt"], -20)
+)
+#Fit a model with stepwise found lags
+#(1,0,2)(1,0,1)
+  fitLim <- arima(stepLags3[170:285,1], order = c(1,0,2), seasonal = list(order = c(1,0,1), period = 12), xreg = stepLags3[170:285,-1], include.mean = FALSE, method = "ML")
+# fitStep <- auto.arima(stepLags2[25:285,1], xreg = stepLags2[25:285,-1], approximation = FALSE, stepwise = FALSE)
+# summary(fitStep)
+# pacf(fitStep$residuals, lag.max = 48)
+checkresiduals(fitLim)
+coeftest(fitLim)
+
+```
+
+
+
+```{r}
+
+```
+Lags from Stepwise:
+Homes Sales Adj:  10, 11, 12, 20
+New Home Sales Adj: 9, 11, 16, 21, 24
+Savings Rate: 7, 19
+Debt: 10, 13, 17, 23, 24
+Disposable Income: 13, 24
+Available Credit: 1, 24
+CPI ADJ: 9, 12, 14, 17, 24, CPI: 12, 15
+Unemp Rate: 7, ADJ: 6
+Claims: 8, 20, ADJ: 8, 20
+S&P: 1, 9
+GDP: 7, 24, YOY: 8, 20
+PCE: 7, 24, YOY: 8, 20
+COVID: 10, 22
+Early 2000s: 12, 23
+Great rec: 1, 22
+
+Interaction:
+GDPYoY * Unemp Claims Adj: -13
+CPI * Debt: -8, -20
+
+
+
+
+```{r}
+# #Fit a model with stepwise found lags
+# fitStep <- arima(stepLags[25:286,1], order = c(1,0,2), seasonal = list(order = c(0,1,1), period = 12), xreg = stepLags[25:286,-1])
+# # fitStep <- auto.arima(stepLags[25:286,1], xreg = stepLags[25:286,-1], approximation = FALSE, stepwise = FALSE)
+# summary(fitStep)
+# checkresiduals(fitStep)
+# pacf(fitStep$residuals)
+```
+1,0,2,0,1,1,12
+Unemp rate adj -13
+gdp yoy -1 .08
+<!-- ```{r} -->
+coeftest(fitStep)
+
+
+```{r}
+for(i in c(2:length(wleadsAll[1,]))){
+  plot(wleadsAll[25:285,i],fitStep$residuals,  main = colnames(wleadsAll)[i])
+}
+```
+
+
+```{r}
+# for(i in c(2:length(allStepLags2[1,]))){
+#   ts.plot((allStepLags2[25:285,i]/sqrt(sum(allStepLags2[25:285,i]))),fitStep$residuals,  main = colnames(allStepLags2)[i])
+# }
+
+```
+
+```{r}
+#Attempt 2 with PW lags
+allStepLags2 <- cbind(
+  myTS2[,27],
+  lag(myTS2[,"Home_Sales_Adj"], -5),
+  lag(myTS2[,"Home_Sales_Adj"], -9),
+  lag(myTS2[,"Home_Sales_Adj"], -10),
+  lag(myTS2[,"Home_Sales_Adj"], -11),
+  lag(myTS2[,"Home_Sales_Adj"], -17),
+  lag(myTS2[,"Home_Sales_Adj"], -20),
+  lag(myTS2[,"New_Home_Sales_Adj"], -4),
+  lag(myTS2[,"New_Home_Sales_Adj"], -7),
+  lag(myTS2[,"New_Home_Sales_Adj"], -9),
+  lag(myTS2[,"New_Home_Sales_Adj"], -11),
+  lag(myTS2[,"New_Home_Sales_Adj"], -16),
+  lag(myTS2[,"New_Home_Sales_Adj"], -18),
+  lag(myTS2[,"New_Home_Sales_Adj"], -20),
+  lag(myTS2[,"New_Home_Sales_Adj"], -21),
+  log(lag(myTS2[,"Savings_Rate"], -7)),
+  log(lag(myTS2[,"Savings_Rate"], -8)),
+  log(lag(myTS2[,"Savings_Rate"], -16)),
+  log(lag(myTS2[,"Savings_Rate"], -19)),
+  lag(myTS2[,"Debt"], -10),
+  lag(myTS2[,"Debt"], -11),
+  lag(myTS2[,"Debt"], -13),
+  lag(myTS2[,"Debt"], -14),
+  lag(myTS2[,"Debt"], -16),
+  lag(myTS2[,"Debt"], -17),
+  lag(myTS2[,"Debt"], -23),
+  lag(myTS2[,"CCI"], -10),
+  lag(myTS2[,"CCI"], -14),
+  lag(myTS2[,"CPI_Adj"], -9),
+  lag(myTS2[,"CPI_Adj"], -14),
+  lag(myTS2[,"CPI_Adj"], -17),
+  log(lag(myTS2[,"Available_Credit"], -19)),
+  log(lag(myTS2[,"Disposable_Income"], -13)),
+  log(lag(myTS2[,"Disposable_Income"], -11)),
+  log(lag(myTS2[,"Disposable_Income_YoY"], -8)),
+  log(lag(myTS2[,"Disposable_Income_YoY"], -9)),
+  log(lag(myTS2[,"Unemployment_Rate_Adj"], -5)),
+  log(lag(myTS2[,"Unemployment_Rate_Adj"], -13)),
+  log(lag(myTS2[,"Unemployment_Rate_Adj"], -11)),
+  log(lag(myTS2[,"Unemployment_Rate_Adj"], -17)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], -7)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], -8)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], -10)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], -11)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], -22)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], -23)),
+  lag(myTS2[,"GDP_YoY"], -1),
+  lag(myTS2[,"GDP_YoY"], -3),
+  lag(myTS2[,"GDP_YoY"], -19),
+  lag(myTS2[,"PCE_YoY"], -18),
+  lag(myTS2[,"PCE_YoY"], -19),
+  lag(myTS2[,"PCE"], -20),
+  myTS2[,"covidRec"],
+  lag(myTS2[,"covidRec"], -2),
+  lag(myTS2[,"greatRec"], -2),
+  lag(myTS2[,"greatRec"], -6),
+  lag(myTS2[,"greatRec"], -7),
+  myTS2[,"early2000Rec"],
+  lag(myTS2[,"Plans_to_Buy_Automobile"], -3),
+  lag(myTS2[,"Plans_to_Buy_Automobile"], -10),
+  lag(myTS2[,"Plans_to_Buy_Automobile"], -14),
+  lag(myTS2[,"Plans_to_Buy_Automobile"], -19),
+  lag(myTS2[,"Plans_to_Buy_Automobile"], -21),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -3)),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -7)),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -10)),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -11)),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -12)),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -13)),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -15)),
+  log(lag(myTS2[,"GDPYoYxUnempClaimsAdj"], -23)),
+  lag(myTS2[,"CPIxDebt"], -20),
+  lag(myTS2[,"CPIAdjxDebt"], -8),
+  lag(myTS2[,"CPIAdjxDebt"], -10),
+  lag(myTS2[,"CPIAdjxDebt"], -13),
+  lag(myTS2[,"CPIAdjxDebt"], -14),
+  lag(myTS2[,"CPIAdjxDebt"], -20))
+
+# write.csv(allStepLags2, file = "Steplag2.csv")
+```
+
+```{r}
+for(i in c(1:24, 30:37)){
+  plot((log(myTS2[15:262,i])) ,leadFit$residuals,  main = colnames(myTS2)[i])
+}
+```
+
+More likely to be Lagging:
+Unemp Rate Adj, Unemp Claims, Hourly Earnings YoY, Debt, Home Sales Adj, Recessions
+
+More likely to be leading:
+S&P, GDP Unemp Rate, Hourly Earnings, CPI, Available Credit, Disp Income, Saving Rate, New Home Sales Adj
+
+Lags:
+Debt: -10, 11, 14
+CPIADJ^2: 11
+
+Leads:S&P +8, 10
+GDP: 4, 10. Yoy 12
+PCE: 5, 14, 18
+Unemp Rate: 2, 5
+Adj: 13
+Unemp Claims: 1, 13,14
+Hourly: 5. Adj 6
+CPI: 6. Adj: 3, 15
+Avail Cred: 12, 13, 17
+Disp Income: 11 + 1to 24 YoY 11 + 16, 23
+Savings: 4 + 11
+Homes Adj: 1, 14 + 7, 15
+New Homes Adj: 10,11,12 +13
+GDPxUnemp: 1,2,13, 21 -2,13
+UnempxSaving: 4 ,5
+CPIADJ^2: 1,2,3
+```{r}
+wleads <- cbind(
+  log(myTS2[,"XYZ_co_est_Monthly_Revenue"]),
+  myTS2[,"novInd"],
+  myTS2[,"decInd"],
+  # myTS2[,"janInd"],
+  # myTS2[,"febInd"],
+  # myTS2[,"greatRec"],
+  myTS2[,"covidRec"],
+
+  # lag(myTS2[,"covidRec"],-3),
+  # lag(myTS2[,"greatRec"], -7),
+  # myTS2[,"janInd"],
+  # lag(myTS2[,"S&P500"], 8),
+  # lag(myTS2[,"S&P500"], 10),
+  # lag(myTS2[,"GDP"], 4),
+  # lag(myTS2[,"GDP"], 10),
+  # lag(myTS2[,"PCE"], 5),
+  # lag(myTS2[,"PCE"], 14),
+  # lag(myTS2[,"PCE"], 18),
+ # lag(myTS2[,"PCE_YoY"], -19),
+ # log(lag(myTS2[,"Unemployment_Claims_Adj"], -11)) *lag(myTS2[,"covidRec"], -3),
+ # log(myTS2[,"Unemployment_Claims_Adj"]) * lag(myTS2[,"covidRec"],-3),
+  # lag(myTS2[,"Unemployment_Rate_Adj"], 13),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], -11)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], 2)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], 2))* lag(myTS2[,"covidRec"], -3),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], 13)),
+  # log(lag(myTS2[,"Unemployment_Claims_Adj"], 14)),
+  lag(myTS2[,"CPI_Adj"], -5)*myTS2[,"novInd"],
+  # lag(myTS2[,"CPI_Adj"], 9)*myTS2[,"janInd"],
+  # myTS2[,"decInd"] * myTS2[,"CPI_Adj"],
+  lag(myTS2[,"CPI_Adj"], 3),
+  # lag(myTS2[,"CPI_Adj"], 15),
+  # lag(myTS2[,"CPI_Adj"], -19),
+  # lag(myTS2[,"CPI_Adj_YoY"], -4) * lag(myTS2[,"greatRec"], -2),
+  lag(myTS2[,"CPI_Adj"], 3)^2,
+  # lag(myTS2[,"CPI_Adj"], 15),
+  # lag(myTS2[,"Debt"], -10),
+  # lag(myTS2[,"Debt"], -11),
+  lag(myTS2[,"Debt"], -14),
+  # lag(myTS2[,"Debt"], -14) *  lag(myTS2[,"covidRec"], -3),
+  # lag(myTS2[,"Debt"], ),
+  # lag(myTS2[,"Available_Credit"], 12),
+  # lag(myTS2[,"Available_Credit"], 13),
+  # log(lag(myTS2[,"Available_Credit"], 17)),
+  # lag(myTS2[,"Available_Credit"], 17) * myTS2[,"covidRec"],
+  # lag(myTS2[,"Disposable_Income"], 11),
+  # lag(myTS2[,"Disposable_Income"], 16),
+  # lag(myTS2[,"Disposable_Income"], 23),
+  # lag(myTS2[,"Savings_Rate"], 4),
+  # lag(myTS2[,"Savings_Rate"], 5),
+  # lag(myTS2[,"Savings_Rate"], 5) *lag(myTS2[,"covidRec"], -3),
+  # lag(myTS2[,"Savings_Rate"], 11),
+  # lag(myTS2[,"Home_Sales_Adj"], 1),
+  lag(myTS2[,"Home_Sales_Adj"], -17),
+  # lag(myTS2[,"Home_Sales_Adj"], 7),
+  # lag(myTS2[,"Home_Sales_Adj"], 14),
+  # lag(myTS2[,"Home_Sales_Adj"], 15),
+  lag(myTS2[,"New_Home_Sales_Adj"], -7)
+  # lag(myTS2[,"New_Home_Sales_Adj"], 10),
+  # lag(myTS2[,"New_Home_Sales_Adj"], 11)
+  # lag(myTS2[,"New_Home_Sales_Adj"], 12),
+  # lag(myTS2[,"New_Home_Sales_Adj"], 13)
+  # lag(myTS2[,"UnempXSavings"], 4)
+  # lag(myTS2[,"UnempXSavings"], 5)
+  # lag(myTS2[,"S&P500"], -2),
+  # lag(myTS2[,"GDP"], -20),
+  # lag(myTS2[,"GDP_YoY"], -1),
+  # lag(myTS2[,"PCE"], -20),
+  # lag(myTS2[,"Unemployment_Rate"], -8),
+  # lag(myTS2[,"Unemployment_Rate"], -20),
+  # lag(myTS2[,"Unemployment_Rate_Adj"], -3),
+  # lag(myTS2[,"Unemployment_Rate_Adj"], -11),
+  # lag(myTS2[,"Unemployment_Rate_Adj"], -13),
+  # myTS2[,"Unemployment_Claims"],
+  # lag(myTS2[,"Unemployment_Claims"], -10),
+  # lag(myTS2[,"CPI_Adj"], -12),
+  # lag(myTS2[,"CPI_Adj"], -15),
+  # lag(myTS2[,"Available_Credit"], -20),
+  # lag(myTS2[,"CCI"], -2),
+  # lag(myTS2[,"Debt"], -1),
+  # lag(myTS2[,"Debt"], -6),
+  # lag(myTS2[,"Debt"], -9),
+  # lag(myTS2[,"Savings_Rate"], -8),
+  # lag(myTS2[,"Savings_Rate"], -19),
+  # lag(myTS2[,"Home_Sales_Adj"], -1),
+  # lag(myTS2[,"Home_Sales_Adj"], -8),
+  # lag(myTS2[,"Home_Sales_Adj"], -9),
+  # lag(myTS2[,"Home_Sales_Adj"], -10),
+  # myTS2[,"Plans_to_Buy_Automobile"]
+  # lag(myTS2[,"isRecession"], -2)
+)
+#(2,0,0)(1,0,0)
+leadFit <- Arima(log(wleads[15:262,1]), order = c(2,0,0), seasonal = list(order = c(1,0,0), period = 12),  xreg = wleads[15:262,-1])
+# summary(leadFit)
+pacf(leadFit$residuals, na.action = na.omit)
+checkresiduals(leadFit)
+coeftest(leadFit)
+
+```
+
+```{r}
+exp(leadFit$coef)-1
+
+
+```
+```{r}
+
+
+```
+
+
+
+```{r}
+wleadsAll <- cbind(
+  myTS2[,"XYZ_co_est_Monthly_Revenue"],
+  myTS2[,"novInd"],
+  myTS2[,"decInd"],
+  myTS2[,"greatRec"],
+  myTS2[,"covidRec"],
+  lag(myTS2[,"greatRec"], -7),
+  myTS2[,"janInd"],
+  lag(myTS2[,"S&P500"], 8),
+  lag(myTS2[,"S&P500"], 10),
+  lag(myTS2[,"GDP"], 4),
+  lag(myTS2[,"GDP"], 10),
+  lag(myTS2[,"PCE"], 5),
+  lag(myTS2[,"PCE"], 14),
+  lag(myTS2[,"PCE"], 18),
+  lag(myTS2[,"Unemployment_Rate_Adj"], 13),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], -11)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], 1)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], 13)),
+  log(lag(myTS2[,"Unemployment_Claims_Adj"], 14)),
+  lag(myTS2[,"CPI_Adj"], -5)*myTS2[,"novInd"],
+  lag(myTS2[,"CPI_Adj"], 9)*myTS2[,"janInd"],
+  myTS2[,"decInd"] * myTS2[,"CPI_Adj"],
+  lag(myTS2[,"CPI_Adj"], 3),
+  lag(myTS2[,"CPI_Adj"], -19),
+  lag(myTS2[,"CPI_Adj"], 3)^2,
+  lag(myTS2[,"CPI_Adj"], 15),
+  lag(myTS2[,"Debt"], -10),
+  lag(myTS2[,"Debt"], -11),
+  lag(myTS2[,"Debt"], -14)^2,
+  lag(myTS2[,"Available_Credit"], 12),
+  lag(myTS2[,"Available_Credit"], 13),
+  lag(myTS2[,"Available_Credit"], 17),
+  lag(myTS2[,"Disposable_Income"], 11),
+  lag(myTS2[,"Disposable_Income"], 16),
+  lag(myTS2[,"Disposable_Income"], 23),
+  lag(myTS2[,"Savings_Rate"], 4),
+  lag(myTS2[,"Savings_Rate"], 11),
+  lag(myTS2[,"Home_Sales_Adj"], 1),
+  lag(myTS2[,"Home_Sales_Adj"], -17),
+  lag(myTS2[,"Home_Sales_Adj"], 7),
+  lag(myTS2[,"Home_Sales_Adj"], 14),
+  lag(myTS2[,"Home_Sales_Adj"], 15),
+  lag(myTS2[,"New_Home_Sales_Adj"], -7),
+  lag(myTS2[,"New_Home_Sales_Adj"], 10),
+  lag(myTS2[,"New_Home_Sales_Adj"], 11),
+  lag(myTS2[,"New_Home_Sales_Adj"], 12),
+  lag(myTS2[,"New_Home_Sales_Adj"], 13),
+  lag(myTS2[,"UnempXSavings"], 4),
+  lag(myTS2[,"UnempXSavings"], 5),
+  lag(myTS2[,"CPIAdjSq"], 1),
+  lag(myTS2[,"CPIAdjSq"], 2),
+  lag(myTS2[,"CPIAdjSq"], 3),
+  lag(myTS2[,"S&P500"], -2),
+  lag(myTS2[,"GDP"], -20),
+  lag(myTS2[,"GDP_YoY"], -1),
+  lag(myTS2[,"PCE"], -20),
+  lag(myTS2[,"Unemployment_Rate"], -8),
+  lag(myTS2[,"Unemployment_Rate"], -20),
+  lag(myTS2[,"Unemployment_Rate_Adj"], -3),
+  lag(myTS2[,"Unemployment_Rate_Adj"], -11),
+  lag(myTS2[,"Unemployment_Rate_Adj"], -13),
+  myTS2[,"Unemployment_Claims"],
+  lag(myTS2[,"Unemployment_Claims"], -10),
+  lag(myTS2[,"CPI_Adj"], -12),
+  lag(myTS2[,"CPI_Adj"], -15),
+  lag(myTS2[,"Available_Credit"], -20),
+  lag(myTS2[,"CCI"], -2),
+  lag(myTS2[,"Debt"], -1),
+  lag(myTS2[,"Debt"], -6),
+  lag(myTS2[,"Debt"], -9),
+  lag(myTS2[,"Savings_Rate"], -8),
+  lag(myTS2[,"Savings_Rate"], -19),
+  lag(myTS2[,"Home_Sales_Adj"], -1),
+  lag(myTS2[,"Home_Sales_Adj"], -8),
+  lag(myTS2[,"Home_Sales_Adj"], -9),
+  lag(myTS2[,"Home_Sales_Adj"], -10),
+  myTS2[,"Plans_to_Buy_Automobile"]
+)
+# write.csv(wleadsAll, file = "wleads.csv")
+
+
+```
