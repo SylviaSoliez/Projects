@@ -2,8 +2,8 @@
 Here is my portfolio, I'll intend to keep my works here for preservation and as a reminder of how much I've grown.
 
 Currently there are 4 Projects:
-1. XYZ Cafe Project (Spring 2022)
-2. Saratoga Home Prices Project (Fall 2021)
+1. Saratoga Home Prices Project (Fall 2021)
+2. XYZ Cafe Project (Spring 2022)
 3. Waste Data ANOVA Project (Spring 2023)
 4. Industry Client Project (Spring 2023)
 
