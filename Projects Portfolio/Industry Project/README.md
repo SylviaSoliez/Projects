@@ -1,5 +1,5 @@
 Project Abstract:
-# STAT480  – Statistical Consulting
+# STAT480  – Statistical Consulting (Spring 2023)
 ## Description:
 
 I was assigned a partner to work on an unstructured project for a real industry client. The data was massive which included 15 KPIs, and 5 economic indicators (including the client’s business revenue) with some dating back to January 1900. The goal was to go nuts with the data, and report back with any interesting findings, particularly which KPIs and corresponding lags did well for predicting the client’s revenue. We decided to use lags and leads up to two years out, and ideally at least one year out.
