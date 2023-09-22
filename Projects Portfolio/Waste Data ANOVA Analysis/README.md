@@ -1,4 +1,4 @@
-# STAT 301 - ANOVA
+# STAT 301 - ANOVA (Spring 2023)
 
 ## Description:
 
