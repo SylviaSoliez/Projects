@@ -1,25 +1,25 @@
 Project Abstract:
-STAT480  – Statistical Consulting
-Description:
+# STAT480  – Statistical Consulting
+## Description:
 
 I was assigned a partner to work on an unstructured project for a real industry client. The data was massive which included 15 KPIs, and 5 economic indicators (including the client’s business revenue) with some dating back to January 1900. The goal was to go nuts with the data, and report back with any interesting findings, particularly which KPIs and corresponding lags did well for predicting the client’s revenue. We decided to use lags and leads up to two years out, and ideally at least one year out.
 
 Throughout our time working on this project, we had three presentations; one for our analysis plan (to colleagues), one for our results (to colleagues), and one to the client with results simplified for business action. We also had a study report to document and back up our analyses. It should also be noted that there were also two concurrent projects, one other for this class, and the Waste Data Project for another class.
 
-Analysis methodologies:
+## Analysis methodologies:
 
 This project was largely time series analysis. I worked on a prescriptive regression with ARIMA errors model. This topic was barely touched on in a previous class, but this was the clear choice to use based on the extensive research I performed. My partner cleaned the data while I was still researching, and we worked on our separate sections. 
 
-Programming:
+## Programming:
 
 I used JMP and R for EDA, and programmed in R. The data was in a .xlsx file.
 
-Transferable Skills:
+## Transferable Skills:
 
 Time Management, Teamwork, Leadership, Critical Thinking, Research, Programming 
 
 
-Post Project Debrief:
+## Post Project Debrief:
 
 This was an intense project, and my first experience with an actual client. Halfway through the semester we had our first schedule meeting to kick off the project, of which we had plenty of rehearsal for asking the right questions and to fully understand the client’s problem. It turned out that our client was very prepared, as it was more of a presentation on their end; but I was able to ask pertinent questions at the end. We only contacted them to set their expectations on when we would present our findings, even though it might’ve benefited us to ask follow up questions about the project get feedback on our process throughout our time working on their problem.
 
