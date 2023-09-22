@@ -1,5 +1,3 @@
-Project Abstract:
-
 # STAT 301 - ANOVA
 
 ## Description:
