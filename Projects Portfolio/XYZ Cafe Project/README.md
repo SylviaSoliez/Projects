@@ -1,6 +1,6 @@
 The code used in this analaysis was written by a teammate, and has been excluded as it isn't indicative of my skill.
 
-# Math 430 – Advanced Math Modeling
+# Math 430 – Advanced Math Modeling (Spring 2022)
 
 ## Project Description:
 
