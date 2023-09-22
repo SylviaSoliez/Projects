@@ -1,10 +1,6 @@
 # Projects-Portfolio
-Here is my portfolio, I'll intend to keep my works here for preservation and as a reminder of how much I've grown.
+Hi there, my name is Troy Rodriguez. I graduated from Metro State Univerisity with a B.S. in Industrial and Applied Math and minor in Applied Statistics. I'm fully invested in continuous learning and doing my best.
+Thanks for viewing my Project Portfolio! Here you'll find a reflection and the associated files for some of the projects I've worked on. 
 
-Currently there are 4 Projects:
-1. Saratoga Home Prices Project (Fall 2021)
-2. XYZ Cafe Project (Spring 2022)
-3. Waste Data ANOVA Project (Spring 2023)
-4. Industry Client Project (Spring 2023)
+Please reach out on LinkedIn for any inquiries. 😄
 
-Within each is a reflection on each project, including a brief summary of the project, and a post project debrief.
