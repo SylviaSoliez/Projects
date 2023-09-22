@@ -1,6 +1,4 @@
-Project Abstract:
-
-# Stat 311 – Regression Analysis
+# Stat 311 – Regression Analysis (Fall 2021)
 
 ## Description:
 
