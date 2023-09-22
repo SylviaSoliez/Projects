@@ -1,26 +1,26 @@
 Project Abstract:
 
-Stat 311 – Regression Analysis
+# Stat 311 – Regression Analysis
 
-Description:
+## Description:
 
 Given a data set of 1728 Homes in Saratoga, NY, and 17 characteristics of each house, we were to determine a sufficient way to predict the market cost of a home based on the 17 characteristics using regression analysis. The project was assigned to a group of two, with the goal of creating a technical report and giving an oral presentation.
 
-Analysis methodologies:
+## Analysis methodologies:
 
 The data itself was messy, requiring transformation of variables to work with the assumption of Least Squares regression. To determine which parameters to use, we utilized Regression analysis and created some hypothesized models to compare. From there we had to use hypothesis testing to determine which was the most significant, and then validate the model. 
 
-Programming:
+## Programming:
 
 We used JMP for all statistical analyses.
 
-Transferable Skills:
+## Transferable Skills:
 
 Presentation Skills, Writing Skills, Time Management Skills, Teamwork Skills, Leadership Skills
 
 
 
-Post Project Debrief:
+## Post Project Debrief:
 
 This project took place before my time in Advanced Mathematical Modelling. The importance of this caveat is because in Advanced Modelling, the entire purpose of the class was to complete projects. We were educated on well proven strategies of working as a team and refining our technical writing skills. I did not have this knowledge for this project. We were also given other weekly assignments which distracted me from working on the project instead.
 
