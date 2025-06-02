@@ -14,12 +14,12 @@ R was used for all statistical analyses.
 
 ## Transferable Skills:
 
-Creative Thinking, Critical Thinking, Writing, Time Management
+Creative Thinking, Critical Thinking, Writing, Time Management.
 
 ## Process:
 
 1) EDA to determine questions of interest.
 2) For each question:
-*  Research and perform analysis method
-*  Generate necessary data visualizations 
+*  Research and perform analysis method.
+*  Generate necessary data visualizations .
 *  Consolidate findings in report using a structured format.
