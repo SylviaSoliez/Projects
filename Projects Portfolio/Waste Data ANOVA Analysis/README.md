@@ -1,6 +1,4 @@
-# STAT 301 - ANOVA (Spring 2023)
-
-## Description:
+# Description:
 
 To focus on applying ANOVA in analysis, I developed, analyzed, and created a conclusion for two research questions that interested me. The data set used was yearly data about how much each Minnesota county collected in Recycling, Organic Recycling, Onsite Recycling, Waste to Energy, and Landfilled waste. The questions answered were:
 
@@ -8,18 +6,18 @@ To focus on applying ANOVA in analysis, I developed, analyzed, and created a con
 
 2)	Between the lowest, middle, and top tier counties in terms of Onsite Recycling, is there a significant difference in the mean Landfilled waste for the year 2017? 
 
-## Programming:
+#Data 
+
+Provided in .xlsx format.
+
+# Programming:
 
 R was used for all statistical analyses.
 
-## Transferable Skills:
-
-Creative Thinking, Critical Thinking, Writing, Time Management.
-
-## Process:
+# Process:
 
 1) EDA to determine questions of interest.
 2) For each question:
 *  Research and perform analysis method.
-*  Generate necessary data visualizations .
+*  Generate necessary data visualizations.
 *  Consolidate findings in report using a structured format.
