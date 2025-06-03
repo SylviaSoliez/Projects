@@ -1,7 +1,7 @@
 # Description
 In this team project, we were tasked with applying Multiple Regression to a large data set of single-family homes in Saratoga, NY with a goal of determining a model that can be used to predict the value of a home in that area.
 
-#Data
+# Data
 Provided in .xlsx format.
 
 # Programming
