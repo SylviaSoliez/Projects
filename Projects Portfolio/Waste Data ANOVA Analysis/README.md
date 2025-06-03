@@ -6,7 +6,7 @@ To focus on applying ANOVA in analysis, I developed, analyzed, and created a con
 
 2)	Between the lowest, middle, and top tier counties in terms of Onsite Recycling, is there a significant difference in the mean Landfilled waste for the year 2017? 
 
-#Data 
+# Data 
 
 Provided in .xlsx format.
 
