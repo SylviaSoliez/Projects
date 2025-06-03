@@ -1,6 +1,6 @@
 # Description:
 
-In this project, I worked with my partner to deliver on the client's business inquiry - to find interesting interactions between 18 monthly economic indicators and their respecive leads and lags (+1/-2 years) to determine which did well for predicting their revenue. The data was massive and spanned multiple decades.
+In this project, I worked with my partner to deliver on the client's business inquiry - to find interesting interactions between 18 monthly economic indicators and their respecive leads and lags (+1/-2 years) to determine which did well for predicting their revenue. The data was massive and spanned multiple decades. My Partner would work separately on a predictive Recurrent Neural Network model.
 
 # Analysis methodologies:
 
@@ -12,9 +12,9 @@ Provided in .xlsx format.
 
 # Programming:
 
-I used JMP and R for EDA, and modelled the data in R.
+EDA was done in JMP and R, and modeling the data was completed in R.
 
-#Process
+# Process
 1) Consult with the client's on their business goals, and data specifications.
 2) EDA and Initial Data Cleaning.
 3) Research which methodologies best reach this goal.
