@@ -1,6 +1,6 @@
 # Description:
 
-In this project, I worked with my partner to deliver on the client's business inquiry - to find interesting interactions between 18 monthly economic indicators and their respecive lags and leads (+1/-2 years) to determine which did well for predicting their revenue. The data was massive and spanned multiple decades.
+In this project, I worked with my partner to deliver on the client's business inquiry - to find interesting interactions between 18 monthly economic indicators and their respecive leads and lags (+1/-2 years) to determine which did well for predicting their revenue. The data was massive and spanned multiple decades.
 
 # Analysis methodologies:
 
@@ -8,7 +8,7 @@ I worked on a prescriptive regression with ARIMA errors model (ARIMAX).
 
 # Data
 
-Provided in .xlsx format
+Provided in .xlsx format.
 
 # Programming:
 
