@@ -4,7 +4,7 @@ In this team project, we were tasked with applying Multiple Regression to a larg
 # Data
 Provided in .xlsx format.
 
-# Programming
+# Methods
 Data Cleaning, Data Transformation, EDA and Modeling was completed in JMP.
 
 # Process
