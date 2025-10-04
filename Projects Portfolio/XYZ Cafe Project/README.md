@@ -9,7 +9,8 @@ Each variable needed to be modelled and validated individually, as they either f
 # Data
 
 A brief 15-day history of the client's lunch rush sales was provided in .xlsx. 
-<img width="2273" height="1276" alt="image" src="https://github.com/user-attachments/assets/bf565ea6-fb93-4e30-9081-62214f3980d0" />
+Here are simple Histograms of the data.
+<img width="1806" height="1224" alt="image" src="https://github.com/user-attachments/assets/e6da88e2-5536-44ca-9d52-3158b1719052" />
 
 
 # Modeling
