@@ -10,3 +10,6 @@ Throughout this project, I provided the clients with direct support to ensure bo
 3) Determine statistical methods, and the if-needed low-sample-size substitutes.
 4) Compile findings in a powerpoint for peer review.
 5) Compile clinical trial details, and detailed statistical methods in Design of Experiments report for a non-technical audience.
+
+# Powerpoint Preview
+<img width="2695" height="1488" alt="image" src="https://github.com/user-attachments/assets/25340a3e-caa8-49a0-abdc-40397fb58c52" />
