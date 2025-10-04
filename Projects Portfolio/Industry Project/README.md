@@ -1,16 +1,17 @@
-# Description:
+# Description
 
 In this project, I worked with my partner to deliver on the client's business inquiry - to find interesting interactions between 18 monthly economic indicators and their respecive leads and lags (+1/-2 years) to determine which did well for predicting their revenue. The data was massive and spanned multiple decades. My Partner would work separately on a predictive Recurrent Neural Network model.
 
-# Analysis methodologies:
+# Analysis methodologies
 
 I worked on a prescriptive regression with ARIMA errors model (ARIMAX).
 
 # Data
 
 Provided in .xlsx format.
+<img width="2674" height="1479" alt="image" src="https://github.com/user-attachments/assets/b2b0aa96-d018-4351-985c-ad615abd52af" />
 
-# Programming:
+# Programming
 
 EDA was done in JMP and R, and modeling the data was completed in R.
 
