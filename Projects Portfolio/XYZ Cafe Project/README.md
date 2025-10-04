@@ -1,17 +1,17 @@
-# Project Description:
+# Description
 
 Tasked with optimizing the frontend business model for a café in St. Paul, MN, we were to create a model to extrapolate client's sales, then modify this to hypothesize different business models; add another cashier or add cashier duties to the barista. With these models, we would perform a cost-benefit analysis to determine which model had the best revenue and customer experience.
 
-# Analysis:
+# Analysis
+
+The end goal is to reduce balking, which is strongly correlated with how long the line is as shown here: 
+<img width="910" height="668" alt="image" src="https://github.com/user-attachments/assets/1af32109-4d18-4c84-ac0d-3907247aa8e4" />
 
 Each variable needed to be modelled and validated individually, as they either followed known distributions, or depended on the state of the system. Using Monte Carlo Simulations was a suitable way to determine the effects of the hypothesized models compared to the base model.
 
 # Data
 
 A brief 15-day history of the client's lunch rush sales was provided in .xlsx. 
-Here are simple Histograms of the data.
-<img width="1806" height="1224" alt="image" src="https://github.com/user-attachments/assets/e6da88e2-5536-44ca-9d52-3158b1719052" />
-
 
 # Modeling
 
